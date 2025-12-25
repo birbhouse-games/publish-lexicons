@@ -113,32 +113,32 @@ jobs:
 
 ## Inputs
 
-| Input | Description | Required | Default |
-|-------|-------------|----------|---------|
-| `handle` | ATProto handle for the account whose repository the lexicons will be published to (e.g., `user.bsky.social`). | **Yes** | N/A |
-| `app-password` | App password for authentication. **Do not use your main account password.** Store this in GitHub Secrets. | **Yes** | N/A |
-| `lexicon-files` | Paths to lexicon files or directories. Directories are recursively searched for `.json` files. | **Yes** | N/A |
-| `service` | ATProto service URL. Use this to publish to a custom PDS. | No | `https://public.api.bsky.app` |
+| Input           | Description                                                                                                   | Required | Default                       |
+| --------------- | ------------------------------------------------------------------------------------------------------------- | -------- | ----------------------------- |
+| `handle`        | ATProto handle for the account whose repository the lexicons will be published to (e.g., `user.bsky.social`). | **Yes**  | N/A                           |
+| `app-password`  | App password for authentication. **Do not use your main account password.** Store this in GitHub Secrets.     | **Yes**  | N/A                           |
+| `lexicon-files` | Paths to lexicon files or directories. Directories are recursively searched for `.json` files.                | **Yes**  | N/A                           |
+| `service`       | ATProto service URL. Use this to publish to a custom PDS.                                                     | No       | `https://public.api.bsky.app` |
 
 ## Outputs
 
 ### Summary Statistics
 
-| Output | Description | Type | Example |
-|--------|-------------|------|---------|
-| `published-count` | Total number of lexicons published (new + updated) | Number | `5` |
-| `new-count` | Number of new lexicons published | Number | `3` |
-| `updated-count` | Number of existing lexicons updated | Number | `2` |
-| `skipped-count` | Number of lexicons skipped (no changes detected) | Number | `7` |
+| Output            | Description                                        | Type   | Example |
+| ----------------- | -------------------------------------------------- | ------ | ------- |
+| `published-count` | Total number of lexicons published (new + updated) | Number | `5`     |
+| `new-count`       | Number of new lexicons published                   | Number | `3`     |
+| `updated-count`   | Number of existing lexicons updated                | Number | `2`     |
+| `skipped-count`   | Number of lexicons skipped (no changes detected)   | Number | `7`     |
 
 ### Lexicon Lists
 
-| Output | Description | Type | Example |
-|--------|-------------|------|---------|
-| `published-lexicons` | JSON array of all published lexicon IDs | JSON Array | `["com.example.one", "com.example.two"]` |
-| `new-lexicons` | JSON array of newly published lexicon IDs | JSON Array | `["com.example.one"]` |
-| `updated-lexicons` | JSON array of updated lexicon IDs | JSON Array | `["com.example.two"]` |
-| `skipped-lexicons` | JSON array of skipped lexicon IDs | JSON Array | `["com.example.unchanged"]` |
+| Output               | Description                               | Type       | Example                                  |
+| -------------------- | ----------------------------------------- | ---------- | ---------------------------------------- |
+| `published-lexicons` | JSON array of all published lexicon IDs   | JSON Array | `["com.example.one", "com.example.two"]` |
+| `new-lexicons`       | JSON array of newly published lexicon IDs | JSON Array | `["com.example.one"]`                    |
+| `updated-lexicons`   | JSON array of updated lexicon IDs         | JSON Array | `["com.example.two"]`                    |
+| `skipped-lexicons`   | JSON array of skipped lexicon IDs         | JSON Array | `["com.example.unchanged"]`              |
 
 ### Using Outputs in Workflows
 
@@ -194,6 +194,7 @@ List outputs are JSON arrays (strings) and can be parsed:
 **Cause**: Invalid credentials or wrong password type.
 
 **Solution**:
+
 - Verify you're using an **app password**, not your main account password
 - Check that secrets are set correctly in repository settings
 - Ensure the handle matches the account for the app password
@@ -203,6 +204,7 @@ List outputs are JSON arrays (strings) and can be parsed:
 **Cause**: No `.json` files found in specified paths.
 
 **Solution**:
+
 - Verify paths in `lexicon-files` are correct relative to repository root
 - Ensure lexicon files have `.json` extension
 - Check that files are committed to the repository (not in `.gitignore`)
@@ -242,6 +244,7 @@ npm run package
 You can test the action locally using the `@github/local-action` utility:
 
 1. Create a `.env` file:
+
    ```bash
    INPUT_HANDLE=user.bsky.social
    INPUT_APP-PASSWORD=xxxx-xxxx-xxxx-xxxx
