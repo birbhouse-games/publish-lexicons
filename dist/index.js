@@ -44931,11 +44931,6 @@ async function run() {
         if (!LEXICON_FILES || LEXICON_FILES.length === 0) {
             throw new Error('At least one lexicon file path is required in lexicon-files input');
         }
-        // Validate handle format (basic check for ATProto handle format)
-        const handleRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
-        if (!handleRegex.test(HANDLE)) {
-            throw new Error(`Invalid handle format: "${HANDLE}". Handle must be a valid domain name (e.g., user.bsky.social)`);
-        }
         coreExports.startGroup('Loading lexicon files...');
         const lexiconDictionary = await loadLexiconFiles(LEXICON_FILES);
         if (Object.keys(lexiconDictionary).length) {
