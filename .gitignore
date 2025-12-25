@@ -1,6 +1,9 @@
 # Dependency directory
 node_modules
 
+# Distribution directory (only committed during releases by semantic-release)
+dist/
+
 # Rest pulled from https://github.com/github/gitignore/blob/master/Node.gitignore
 # Logs
 logs

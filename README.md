@@ -239,6 +239,27 @@ npm run lint
 npm run package
 ```
 
+### Releasing
+
+This project uses [semantic-release](https://semantic-release.gitbook.io/) for automated versioning and releases.
+
+**Commit Message Format:**
+
+Follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
+
+```bash
+# Patch release (1.0.0 -> 1.0.1)
+fix: correct input validation for handle parameter
+
+# Minor release (1.0.0 -> 1.1.0)
+feat: add support for custom ATProto services
+
+# Major release (1.0.0 -> 2.0.0)
+feat!: change output format to JSON arrays
+
+BREAKING CHANGE: output format has changed
+```
+
 ### Local Testing
 
 You can test the action locally using the `@github/local-action` utility:
