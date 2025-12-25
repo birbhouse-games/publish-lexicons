@@ -108,7 +108,6 @@ describe('main.ts', () => {
 				'At least one lexicon file path is required in lexicon-files input',
 			)
 		})
-
 	})
 
 	describe('Lexicon Loading', () => {
