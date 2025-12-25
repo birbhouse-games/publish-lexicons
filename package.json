@@ -1,4 +1,5 @@
 {
+	"name": "publish-lexicons",
 	"type": "module",
 	"private": true,
 	"exports": {
