@@ -1,5 +1,12 @@
+// Module imports
+import '@atcute/atproto'
 import * as core from '@actions/core'
-import { wait } from './wait.js'
+import { Client, CredentialManager, ok } from '@atcute/client'
+import diff from 'microdiff'
+import { TID } from '@atproto/common'
+
+// Local imports
+import { loadLexiconFiles } from './loadLexiconFiles'
 
 /**
  * The main function for the action.
@@ -7,21 +14,210 @@ import { wait } from './wait.js'
  * @returns Resolves when the action is complete.
  */
 export async function run(): Promise<void> {
-  try {
-    const ms: string = core.getInput('milliseconds')
+	try {
+		const APP_PASSWORD = core.getInput('app-password', { required: true })
+		const HANDLE = core.getInput('handle', { required: true })
+		const LEXICON_FILES = core.getMultilineInput('lexicon-files', {
+			required: true,
+		})
+		const SERVICE = core.getInput('service', { required: false })
 
-    // Debug logs are only output if the `ACTIONS_STEP_DEBUG` secret is true
-    core.debug(`Waiting ${ms} milliseconds ...`)
+		// Prevent app password from being leaked in logs
+		core.setSecret(APP_PASSWORD)
 
-    // Log the current timestamp, wait, then log the new timestamp
-    core.debug(new Date().toTimeString())
-    await wait(parseInt(ms, 10))
-    core.debug(new Date().toTimeString())
+		// Validate inputs
+		if (!HANDLE || HANDLE.trim().length === 0) {
+			throw new Error('Handle is required and cannot be empty')
+		}
 
-    // Set outputs for other workflow steps to use
-    core.setOutput('time', new Date().toTimeString())
-  } catch (error) {
-    // Fail the workflow run if an error occurs
-    if (error instanceof Error) core.setFailed(error.message)
-  }
+		if (!APP_PASSWORD || APP_PASSWORD.trim().length === 0) {
+			throw new Error('App password is required and cannot be empty')
+		}
+
+		if (!LEXICON_FILES || LEXICON_FILES.length === 0) {
+			throw new Error(
+				'At least one lexicon file path is required in lexicon-files input',
+			)
+		}
+
+		core.startGroup('Loading lexicon files...')
+
+		const lexiconDictionary = await loadLexiconFiles(LEXICON_FILES)
+
+		if (Object.keys(lexiconDictionary).length) {
+			core.info(
+				`Loaded ${Object.keys(lexiconDictionary).length} lexicon files.`,
+			)
+		} else {
+			core.warning('No lexicon files found in the specified paths.')
+			core.endGroup()
+			return
+		}
+
+		core.endGroup()
+
+		const credentialManager = new CredentialManager({ service: SERVICE })
+		const client = new Client({ handler: credentialManager })
+
+		core.info(`Authenticating with ${SERVICE} as ${HANDLE}...`)
+
+		await credentialManager.login({
+			identifier: HANDLE,
+			password: APP_PASSWORD,
+		})
+
+		core.info('✓ Authentication successful')
+
+		core.info('Retrieving published lexicons from repository...')
+
+		// Fetch all published lexicons with pagination support
+		const publishedLexicons = []
+		let cursor: string | undefined
+
+		do {
+			const response = await ok(
+				client.get('com.atproto.repo.listRecords', {
+					params: {
+						repo: credentialManager.session!.did,
+						collection: 'com.atproto.lexicon.schema',
+						limit: 100,
+						cursor,
+					},
+				}),
+			)
+
+			publishedLexicons.push(...response.records)
+			cursor = response.cursor
+		} while (cursor)
+
+		core.info(`Found ${publishedLexicons.length} published lexicons`)
+
+		if (publishedLexicons.length) {
+			publishedLexicons.forEach((publishedLexicon) => {
+				const lexiconDictionaryEntry =
+					lexiconDictionary[publishedLexicon.value.id as string]
+
+				if (lexiconDictionaryEntry) {
+					lexiconDictionaryEntry.published = publishedLexicon
+				}
+			})
+
+			core.info('Comparing local lexicons with published versions...')
+
+			for (const lexiconDictionaryEntry of Object.values(lexiconDictionary)) {
+				if (typeof lexiconDictionaryEntry.published !== 'undefined') {
+					const differences = diff(
+						lexiconDictionaryEntry.published.value,
+						lexiconDictionaryEntry.local,
+						{
+							cyclesFix: false,
+						},
+					)
+					// If no differences exist, don't publish
+					if (!differences.length) {
+						lexiconDictionaryEntry.shouldPublish = false
+						core.debug(
+							`Skipping ${lexiconDictionaryEntry.local.id} (no changes)`,
+						)
+					} else {
+						core.debug(
+							`Will update ${lexiconDictionaryEntry.local.id} (${differences.length} changes)`,
+						)
+					}
+				}
+			}
+		}
+
+		const publishStats = {
+			new: 0,
+			updated: 0,
+			skipped: 0,
+		}
+
+		const newLexiconIds: string[] = []
+		const updatedLexiconIds: string[] = []
+		const skippedLexiconIds: string[] = []
+
+		Object.values(lexiconDictionary).forEach(
+			({ local, published, shouldPublish }) => {
+				if (!shouldPublish) {
+					publishStats.skipped += 1
+					skippedLexiconIds.push(local.id)
+					return
+				}
+
+				if (published) {
+					publishStats.updated += 1
+					updatedLexiconIds.push(local.id)
+					return
+				}
+
+				publishStats.new += 1
+				newLexiconIds.push(local.id)
+			},
+		)
+
+		if (publishStats.new === 0 && publishStats.updated === 0) {
+			core.info('✓ No changes detected - all lexicons are up to date')
+			return
+		}
+
+		core.info(
+			`Publishing ${publishStats.new + publishStats.updated} lexicons (${publishStats.new} new, ${publishStats.updated} updated)...`,
+		)
+
+		const publishedLexiconIds: string[] = []
+		const writes = Object.values(lexiconDictionary).reduce<
+			Array<{
+				$type: 'com.atproto.repo.applyWrites#create'
+				collection: `${string}.${string}.${string}`
+				rkey: string
+				value: Record<string, unknown>
+			}>
+		>((accumulator, lexiconDictionaryEntry) => {
+			if (lexiconDictionaryEntry.shouldPublish) {
+				publishedLexiconIds.push(lexiconDictionaryEntry.local.id)
+				accumulator.push({
+					$type: 'com.atproto.repo.applyWrites#create',
+					collection: 'com.atproto.lexicon.schema',
+					rkey: TID.nextStr(),
+					value: lexiconDictionaryEntry.local as unknown as Record<
+						string,
+						unknown
+					>,
+				})
+			}
+
+			return accumulator
+		}, [])
+
+		await client.post('com.atproto.repo.applyWrites', {
+			input: {
+				repo: credentialManager.session!.did,
+				writes,
+				validate: true,
+			},
+		})
+
+		core.info(
+			`✅ Successfully published ${publishStats.new + publishStats.updated} lexicons (${publishStats.new} new, ${publishStats.updated} updated)`,
+		)
+
+		// Set outputs for other workflow steps
+		core.setOutput('published-count', publishStats.new + publishStats.updated)
+		core.setOutput('new-count', publishStats.new)
+		core.setOutput('updated-count', publishStats.updated)
+		core.setOutput('skipped-count', publishStats.skipped)
+		core.setOutput('published-lexicons', JSON.stringify(publishedLexiconIds))
+		core.setOutput('new-lexicons', JSON.stringify(newLexiconIds))
+		core.setOutput('updated-lexicons', JSON.stringify(updatedLexiconIds))
+		core.setOutput('skipped-lexicons', JSON.stringify(skippedLexiconIds))
+	} catch (error) {
+		// Fail the workflow run if an error occurs
+		if (error instanceof Error) {
+			core.setFailed(error.message)
+		} else {
+			core.setFailed(String(error))
+		}
+	}
 }

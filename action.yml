@@ -1,23 +1,48 @@
-name: The name of your action here
-description: Provide a description here
-author: Your name or organization here
+name: Publish ATProto Lexicons
+description: Allows publishing of lexicons to the ATProto network.
+author: Birbhouse Games, LLC
 
 # Add your action's branding here. This will appear on the GitHub Marketplace.
 branding:
-  icon: heart
-  color: red
+  icon: at-sign
+  color: blue
 
 # Define your inputs here.
 inputs:
-  milliseconds:
-    description: Your input description here
+  handle:
+    description: ATProto handle (e.g., user.bsky.social)
     required: true
-    default: '1000'
+  app-password:
+    description: App password for authentication
+    required: true
+  lexicon-files:
+    description: |
+      Paths to lexicon files or directories (one per line).
+      Directories will be recursively searched for .json files.
+    required: true
+  service:
+    description: ATProto service URL
+    required: false
+    default: 'https://public.api.bsky.app'
 
 # Define your outputs here.
 outputs:
-  time:
-    description: Your output description here
+  published-count:
+    description: Number of lexicons published (new + updated)
+  new-count:
+    description: Number of new lexicons published
+  updated-count:
+    description: Number of existing lexicons updated
+  skipped-count:
+    description: Number of lexicons skipped (no changes detected)
+  published-lexicons:
+    description: JSON array of lexicon IDs that were published
+  new-lexicons:
+    description: JSON array of newly published lexicon IDs
+  updated-lexicons:
+    description: JSON array of updated lexicon IDs
+  skipped-lexicons:
+    description: JSON array of skipped lexicon IDs
 
 runs:
   using: node24
