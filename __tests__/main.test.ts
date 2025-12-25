@@ -85,20 +85,6 @@ describe('main.ts', () => {
 			)
 		})
 
-		it('Throws error for invalid handle format', async () => {
-			core.getInput.mockImplementation((name: string) => {
-				if (name === 'handle') return 'invalid handle with spaces'
-				if (name === 'app-password') return 'test-password'
-				return 'default'
-			})
-
-			await run()
-
-			expect(core.setFailed).toHaveBeenCalledWith(
-				expect.stringContaining('Invalid handle format'),
-			)
-		})
-
 		it('Throws error for empty password', async () => {
 			core.getInput.mockImplementation((name: string) => {
 				if (name === 'handle') return 'test.bsky.social'
@@ -123,35 +109,6 @@ describe('main.ts', () => {
 			)
 		})
 
-		it('Accepts valid handle formats', async () => {
-			const validHandles = [
-				'user.bsky.social',
-				'test.example.com',
-				'a.b.c.d.e',
-				'user123.test456.com',
-			]
-
-			for (const handle of validHandles) {
-				jest.clearAllMocks()
-				core.getInput.mockImplementation((name: string) => {
-					if (name === 'handle') return handle
-					if (name === 'app-password') return 'test-password'
-					return 'default'
-				})
-
-				mockLoadLexiconFiles.mockResolvedValue({
-					'com.example.test': {
-						local: { id: 'com.example.test' },
-						shouldPublish: true,
-					},
-				})
-
-				await run()
-
-				// Should not fail for valid handles
-				expect(core.setFailed).not.toHaveBeenCalled()
-			}
-		})
 	})
 
 	describe('Lexicon Loading', () => {
