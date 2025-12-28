@@ -38,7 +38,7 @@
 						"path": "dist/**"
 					}
 				],
-				"releaseNameTemplate": "<%= nextRelease.version %>"
+				"releaseNameTemplate": "v<%= nextRelease.version %>"
 			}
 		]
 	]
