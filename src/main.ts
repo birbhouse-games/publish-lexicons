@@ -208,15 +208,20 @@ export async function run(): Promise<void> {
 
 		core.debug('Attempting to apply writes...')
 
-		const applyWritesResponse = await ok(
-			client.post('com.atproto.repo.applyWrites', {
-				input: applyWritesPayload,
-			}),
-		)
+		try {
+			const applyWritesResponse = await ok(
+				client.post('com.atproto.repo.applyWrites', {
+					input: applyWritesPayload,
+				}),
+			)
 
-		core.debug(
-			`\`applyWrites\` response:\n'${JSON.stringify(applyWritesResponse, null, 2)}`,
-		)
+			core.debug(
+				`\`applyWrites\` response:\n'${JSON.stringify(applyWritesResponse, null, 2)}`,
+			)
+		} catch (error) {
+			core.error('Error occurred while publishing lexicons to ATProto.')
+			core.setFailed(error as Error)
+		}
 
 		core.startGroup(
 			`✅ Successfully published ${publishStats.new + publishStats.updated} lexicons (${publishStats.new} new, ${publishStats.updated} updated)`,
