@@ -6,6 +6,7 @@ import diff from 'microdiff'
 import { TID } from '@atproto/common'
 
 // Local imports
+import { getPublishedLexicons } from './getPublishedLexicons'
 import { loadLexiconFiles } from './loadLexiconFiles'
 
 /**
@@ -74,16 +75,7 @@ export async function run(): Promise<void> {
 		let cursor: string | undefined
 
 		do {
-			const response = await ok(
-				client.get('com.atproto.repo.listRecords', {
-					params: {
-						repo: credentialManager.session!.did,
-						collection: 'com.atproto.lexicon.schema',
-						limit: 100,
-						cursor,
-					},
-				}),
-			)
+			const response = await getPublishedLexicons(client, credentialManager, cursor)
 
 			publishedLexicons.push(...response.records)
 			cursor = response.cursor
