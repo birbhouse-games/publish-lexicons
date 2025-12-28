@@ -1,7 +1,7 @@
 // Module imports
 import '@atcute/atproto'
 import * as core from '@actions/core'
-import { Client, CredentialManager } from '@atcute/client'
+import { Client, CredentialManager, ok } from '@atcute/client'
 import diff from 'microdiff'
 import { TID } from '@atproto/common'
 
@@ -193,13 +193,27 @@ export async function run(): Promise<void> {
 			return accumulator
 		}, [])
 
-		await client.post('com.atproto.repo.applyWrites', {
-			input: {
-				repo: credentialManager.session!.did,
-				writes,
-				validate: true,
-			},
-		})
+		const applyWritesPayload = {
+			repo: credentialManager.session!.did,
+			writes,
+			validate: true,
+		}
+
+		core.debug(
+			`\`applyWrites\` payload:\n'${JSON.stringify(applyWritesPayload, null, 2)}`,
+		)
+
+		core.debug('Attempting to apply writes...')
+
+		const applyWritesResponse = await ok(
+			client.post('com.atproto.repo.applyWrites', {
+				input: applyWritesPayload,
+			}),
+		)
+
+		core.debug(
+			`\`applyWrites\` response:\n'${JSON.stringify(applyWritesResponse, null, 2)}`,
+		)
 
 		core.startGroup(
 			`✅ Successfully published ${publishStats.new + publishStats.updated} lexicons (${publishStats.new} new, ${publishStats.updated} updated)`,
