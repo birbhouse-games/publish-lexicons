@@ -1,4 +1,5 @@
 // Module imports
+import * as core from '@actions/core'
 import fs from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 
@@ -87,6 +88,8 @@ export async function loadLexiconFiles(
 					`All ATProto lexicons must have an "id" field (e.g., "com.example.myLexicon").`,
 			)
 		}
+
+		core.info(`Loaded file: ${lexiconJSON.id}`)
 
 		lexiconDictionary[lexiconJSON.id] = {
 			local: lexiconJSON,
