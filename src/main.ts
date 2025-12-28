@@ -175,7 +175,9 @@ export async function run(): Promise<void> {
 				accumulator.push({
 					$type: 'com.atproto.repo.applyWrites#create',
 					collection: 'com.atproto.lexicon.schema',
-					rkey: TID.nextStr(),
+					rkey: lexiconDictionaryEntry.published?.uri 
+						? lexiconDictionaryEntry.published.uri.split('/').at(-1)!
+						: TID.nextStr(),
 					value: lexiconDictionaryEntry.local as unknown as Record<
 						string,
 						unknown
