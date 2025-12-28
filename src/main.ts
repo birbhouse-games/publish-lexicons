@@ -8,6 +8,7 @@ import { TID } from '@atproto/common'
 // Local imports
 import { getPublishedLexicons } from './getPublishedLexicons'
 import { loadLexiconFiles } from './loadLexiconFiles'
+import packageJSON from '../package.json'
 
 /**
  * The main function for the action.
@@ -15,6 +16,8 @@ import { loadLexiconFiles } from './loadLexiconFiles'
  * @returns Resolves when the action is complete.
  */
 export async function run(): Promise<void> {
+	core.debug(`Using birbhouse-games/publish-lexicons v${packageJSON.version}`)
+
 	try {
 		const APP_PASSWORD = core.getInput('app-password', { required: true })
 		const HANDLE = core.getInput('handle', { required: true })
