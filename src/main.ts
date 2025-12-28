@@ -87,7 +87,7 @@ export async function run(): Promise<void> {
 
 		core.startGroup(`Found ${publishedLexicons.length} published lexicons`)
 		publishedLexicons.forEach((publishedLexicon) => {
-			core.debug(`- ${publishedLexicon.value.id}`)
+			core.info(`- ${publishedLexicon.value.id}`)
 		})
 		core.endGroup()
 
