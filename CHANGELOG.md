@@ -1,3 +1,18 @@
+# [1.2.0](https://github.com/birbhouse-games/publish-lexicons/compare/v1.1.0...v1.2.0) (2025-12-28)
+
+
+### Bug Fixes
+
+* correctly reuse rkeys instead of publishing multiple copies of the same lexicon with different rkeys ([16fe837](https://github.com/birbhouse-games/publish-lexicons/commit/16fe837580c8fbaed8cc01d18872585d1f4db8b7))
+* linting errors ([2cc397b](https://github.com/birbhouse-games/publish-lexicons/commit/2cc397b776ad11cf7d1fee7a4c46941bdc28af7f))
+
+
+### Features
+
+* log all lexicons that have been published ([8ef46e9](https://github.com/birbhouse-games/publish-lexicons/commit/8ef46e93d560f48862d3a5a6d88ac1f37c34f8b6))
+* log all published lexicons after discovery ([1e36228](https://github.com/birbhouse-games/publish-lexicons/commit/1e3622834279ff5e652552b2a8094b26940b3643))
+* log the results of comparing lexicons ([b3c5038](https://github.com/birbhouse-games/publish-lexicons/commit/b3c5038f5555b38d9e556224d1ec5e60c2349501))
+
 # [1.1.0](https://github.com/birbhouse-games/publish-lexicons/compare/v1.0.1...v1.1.0) (2025-12-28)
 
 
