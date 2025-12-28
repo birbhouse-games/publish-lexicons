@@ -48,18 +48,17 @@ export async function run(): Promise<void> {
 			core.info(
 				`Loaded ${Object.keys(lexiconDictionary).length} lexicon files.`,
 			)
+			core.endGroup()
 		} else {
 			core.warning('No lexicon files found in the specified paths.')
 			core.endGroup()
 			return
 		}
 
-		core.endGroup()
-
 		const credentialManager = new CredentialManager({ service: SERVICE })
 		const client = new Client({ handler: credentialManager })
 
-		core.info(`Authenticating with ${SERVICE} as ${HANDLE}...`)
+		core.info(`Authenticating with as ${HANDLE} via ${SERVICE}...`)
 
 		await credentialManager.login({
 			identifier: HANDLE,
