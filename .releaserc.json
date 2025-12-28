@@ -37,7 +37,8 @@
 					{
 						"path": "dist/**"
 					}
-				]
+				],
+				"releaseNameTemplate": "<%= nextRelease.version %>"
 			}
 		]
 	]
