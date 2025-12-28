@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/birbhouse-games/publish-lexicons/compare/v1.0.1...v1.1.0) (2025-12-28)
+
+
+### Features
+
+* log which files are being loaded ([3632a23](https://github.com/birbhouse-games/publish-lexicons/commit/3632a23dd7030e7e90bdc97a4bb6ea449777321d))
+
 ## [1.0.1](https://github.com/birbhouse-games/publish-lexicons/compare/v1.0.0...v1.0.1) (2025-12-28)
 
 

@@ -44897,6 +44897,7 @@ async function loadLexiconFiles(paths, lexiconDictionary = {}, visitedPaths = ne
             throw new Error(`Lexicon file "${normalizedPath}" is missing required "id" field.\n` +
                 `All ATProto lexicons must have an "id" field (e.g., "com.example.myLexicon").`);
         }
+        coreExports.info(`Loaded file: ${lexiconJSON.id}`);
         lexiconDictionary[lexiconJSON.id] = {
             local: lexiconJSON,
             shouldPublish: true,
