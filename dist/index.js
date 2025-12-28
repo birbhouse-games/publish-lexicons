@@ -45285,13 +45285,17 @@ async function run() {
             }
             return accumulator;
         }, []);
-        await client.post('com.atproto.repo.applyWrites', {
-            input: {
-                repo: credentialManager.session.did,
-                writes,
-                validate: true,
-            },
-        });
+        const applyWritesPayload = {
+            repo: credentialManager.session.did,
+            writes,
+            validate: true,
+        };
+        coreExports.debug(`\`applyWrites\` payload:\n'${JSON.stringify(applyWritesPayload, null, 2)}`);
+        coreExports.debug('Attempting to apply writes...');
+        const applyWritesResponse = await ok(client.post('com.atproto.repo.applyWrites', {
+            input: applyWritesPayload,
+        }));
+        coreExports.debug(`\`applyWrites\` response:\n'${JSON.stringify(applyWritesResponse, null, 2)}`);
         coreExports.startGroup(`✅ Successfully published ${publishStats.new + publishStats.updated} lexicons (${publishStats.new} new, ${publishStats.updated} updated)`);
         Object.values(lexiconDictionary).forEach(({ local, published, shouldPublish }) => {
             if (!shouldPublish) {

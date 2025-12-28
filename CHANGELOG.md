@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/birbhouse-games/publish-lexicons/compare/v1.3.0...v1.4.0) (2025-12-28)
+
+
+### Features
+
+* add debug logging around applyWrites ([53b31d6](https://github.com/birbhouse-games/publish-lexicons/commit/53b31d6d3784e356251e351d9f85a95145a5d3ec))
+
 # [1.3.0](https://github.com/birbhouse-games/publish-lexicons/compare/v1.2.0...v1.3.0) (2025-12-28)
 
 
