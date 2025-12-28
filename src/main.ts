@@ -1,7 +1,7 @@
 // Module imports
 import '@atcute/atproto'
 import * as core from '@actions/core'
-import { Client, CredentialManager, ok } from '@atcute/client'
+import { Client, CredentialManager } from '@atcute/client'
 import diff from 'microdiff'
 import { TID } from '@atproto/common'
 
@@ -213,7 +213,7 @@ export async function run(): Promise<void> {
 				}
 
 				core.info(
-					`- ${local.id}${published ? `(rkey: ${published?.uri.split('/').at(-1)!})` : ''}`,
+					`- ${local.id}${published ? `(rkey: ${published.uri.split('/').at(-1)!})` : ''}`,
 				)
 			},
 		)
