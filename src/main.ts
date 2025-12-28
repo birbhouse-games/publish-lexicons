@@ -101,10 +101,10 @@ export async function run(): Promise<void> {
 				}
 			})
 
-			core.info('Comparing local lexicons with published versions...')
+			core.startGroup('Comparing local lexicons with published versions...')
 
 			for (const lexiconDictionaryEntry of Object.values(lexiconDictionary)) {
-				if (typeof lexiconDictionaryEntry.published !== 'undefined') {
+				if (lexiconDictionaryEntry.published) {
 					const differences = diff(
 						lexiconDictionaryEntry.published.value,
 						lexiconDictionaryEntry.local,
@@ -112,19 +112,22 @@ export async function run(): Promise<void> {
 							cyclesFix: false,
 						},
 					)
+
 					// If no differences exist, don't publish
 					if (!differences.length) {
 						lexiconDictionaryEntry.shouldPublish = false
-						core.debug(
-							`Skipping ${lexiconDictionaryEntry.local.id} (no changes)`,
+						core.info(
+							`- Skipping ${lexiconDictionaryEntry.local.id} (no changes)`,
 						)
 					} else {
-						core.debug(
-							`Will update ${lexiconDictionaryEntry.local.id} (${differences.length} changes)`,
+						core.info(
+							`- Will update ${lexiconDictionaryEntry.local.id} (${differences.length} changes)`,
 						)
 					}
 				}
 			}
+
+			core.endGroup()
 		}
 
 		const publishStats = {
