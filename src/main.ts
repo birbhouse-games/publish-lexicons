@@ -116,12 +116,10 @@ export async function run(): Promise<void> {
 					// If no differences exist, don't publish
 					if (!differences.length) {
 						lexiconDictionaryEntry.shouldPublish = false
-						core.info(
-							`- Skipping ${lexiconDictionaryEntry.local.id} (no changes)`,
-						)
+						core.info(`- ${lexiconDictionaryEntry.local.id} (no changes, skip)`)
 					} else {
 						core.info(
-							`- Will update ${lexiconDictionaryEntry.local.id} (${differences.length} changes)`,
+							`- ${lexiconDictionaryEntry.local.id} (${differences.length} changes)`,
 						)
 					}
 				}
@@ -213,7 +211,7 @@ export async function run(): Promise<void> {
 				}
 
 				core.info(
-					`- ${local.id}${published ? `(rkey: ${published.uri.split('/').at(-1)!})` : ''}`,
+					`- ${local.id}${published ? ` (rkey: ${published.uri.split('/').at(-1)!})` : ''}`,
 				)
 			},
 		)
