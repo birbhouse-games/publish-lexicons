@@ -1,4 +1,5 @@
 .DS_Store
+CHANGELOG.md
 .licenses/
 dist/
 node_modules/
