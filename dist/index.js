@@ -44935,16 +44935,16 @@ async function run() {
         const lexiconDictionary = await loadLexiconFiles(LEXICON_FILES);
         if (Object.keys(lexiconDictionary).length) {
             coreExports.info(`Loaded ${Object.keys(lexiconDictionary).length} lexicon files.`);
+            coreExports.endGroup();
         }
         else {
             coreExports.warning('No lexicon files found in the specified paths.');
             coreExports.endGroup();
             return;
         }
-        coreExports.endGroup();
         const credentialManager = new CredentialManager({ service: SERVICE });
         const client = new Client({ handler: credentialManager });
-        coreExports.info(`Authenticating with ${SERVICE} as ${HANDLE}...`);
+        coreExports.info(`Authenticating with as ${HANDLE} via ${SERVICE}...`);
         await credentialManager.login({
             identifier: HANDLE,
             password: APP_PASSWORD,
