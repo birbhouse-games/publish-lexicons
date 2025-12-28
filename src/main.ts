@@ -75,14 +75,18 @@ export async function run(): Promise<void> {
 		let cursor: string | undefined
 
 		do {
-			const response = await getPublishedLexicons(client, credentialManager, cursor)
+			const response = await getPublishedLexicons(
+				client,
+				credentialManager,
+				cursor,
+			)
 
 			publishedLexicons.push(...response.records)
 			cursor = response.cursor
 		} while (cursor)
 
 		core.startGroup(`Found ${publishedLexicons.length} published lexicons`)
-		publishedLexicons.forEach(publishedLexicon => {
+		publishedLexicons.forEach((publishedLexicon) => {
 			core.debug(`- ${publishedLexicon.value.id}`)
 		})
 		core.endGroup()
@@ -175,7 +179,7 @@ export async function run(): Promise<void> {
 				accumulator.push({
 					$type: 'com.atproto.repo.applyWrites#create',
 					collection: 'com.atproto.lexicon.schema',
-					rkey: lexiconDictionaryEntry.published?.uri 
+					rkey: lexiconDictionaryEntry.published?.uri
 						? lexiconDictionaryEntry.published.uri.split('/').at(-1)!
 						: TID.nextStr(),
 					value: lexiconDictionaryEntry.local as unknown as Record<
@@ -196,9 +200,21 @@ export async function run(): Promise<void> {
 			},
 		})
 
-		core.info(
+		core.startGroup(
 			`✅ Successfully published ${publishStats.new + publishStats.updated} lexicons (${publishStats.new} new, ${publishStats.updated} updated)`,
 		)
+		Object.values(lexiconDictionary).forEach(
+			({ local, published, shouldPublish }) => {
+				if (!shouldPublish) {
+					return
+				}
+
+				core.info(
+					`- ${local.id}${published ? `(rkey: ${published?.uri.split('/').at(-1)!})` : ''}`,
+				)
+			},
+		)
+		core.endGroup()
 
 		// Set outputs for other workflow steps
 		core.setOutput('published-count', publishStats.new + publishStats.updated)
