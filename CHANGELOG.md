@@ -1,3 +1,15 @@
+# [1.3.0](https://github.com/birbhouse-games/publish-lexicons/compare/v1.2.0...v1.3.0) (2025-12-28)
+
+
+### Bug Fixes
+
+* elevate logs for discovered published lexicons from debug to info ([e72bd24](https://github.com/birbhouse-games/publish-lexicons/commit/e72bd24b1cfa967c6a391936825603912ff44048))
+
+
+### Features
+
+* improve log readability ([423f6b8](https://github.com/birbhouse-games/publish-lexicons/commit/423f6b8751110a0d0bb1a2163d57e84a6c12c7c8))
+
 # [1.2.0](https://github.com/birbhouse-games/publish-lexicons/compare/v1.1.0...v1.2.0) (2025-12-28)
 
 

@@ -45215,7 +45215,7 @@ async function run() {
         } while (cursor);
         coreExports.startGroup(`Found ${publishedLexicons.length} published lexicons`);
         publishedLexicons.forEach((publishedLexicon) => {
-            coreExports.debug(`- ${publishedLexicon.value.id}`);
+            coreExports.info(`- ${publishedLexicon.value.id}`);
         });
         coreExports.endGroup();
         if (publishedLexicons.length) {
@@ -45234,10 +45234,10 @@ async function run() {
                     // If no differences exist, don't publish
                     if (!differences.length) {
                         lexiconDictionaryEntry.shouldPublish = false;
-                        coreExports.info(`- Skipping ${lexiconDictionaryEntry.local.id} (no changes)`);
+                        coreExports.info(`- ${lexiconDictionaryEntry.local.id} (no changes, skip)`);
                     }
                     else {
-                        coreExports.info(`- Will update ${lexiconDictionaryEntry.local.id} (${differences.length} changes)`);
+                        coreExports.info(`- ${lexiconDictionaryEntry.local.id} (${differences.length} changes)`);
                     }
                 }
             }
@@ -45297,7 +45297,7 @@ async function run() {
             if (!shouldPublish) {
                 return;
             }
-            coreExports.info(`- ${local.id}${published ? `(rkey: ${published.uri.split('/').at(-1)})` : ''}`);
+            coreExports.info(`- ${local.id}${published ? ` (rkey: ${published.uri.split('/').at(-1)})` : ''}`);
         });
         coreExports.endGroup();
         // Set outputs for other workflow steps
