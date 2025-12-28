@@ -233,7 +233,7 @@ describe('main.ts', () => {
 			await run()
 
 			expect(mockPost).toHaveBeenCalled()
-			expect(core.info).toHaveBeenCalledWith(
+			expect(core.startGroup).toHaveBeenCalledWith(
 				expect.stringContaining('Successfully published'),
 			)
 		})
@@ -264,7 +264,7 @@ describe('main.ts', () => {
 			await run()
 
 			expect(mockGet).toHaveBeenCalledTimes(2)
-			expect(core.info).toHaveBeenCalledWith('Found 2 published lexicons')
+			expect(core.startGroup).toHaveBeenCalledWith('Found 2 published lexicons')
 		})
 	})
 
