@@ -26,7 +26,7 @@
 		"@actions/core": "^2.0.1",
 		"@actions/io": "^2.0.0",
 		"@atcute/atproto": "^3.1.9",
-		"@atcute/client": "^4.1.1",
+		"@atcute/client": "^4.1.2",
 		"@atproto/common": "^0.5.3",
 		"microdiff": "^1.5.0"
 	},
