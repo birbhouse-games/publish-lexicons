@@ -1,7 +1,12 @@
 // Module imports
 import '@atcute/atproto'
 import * as core from '@actions/core'
-import { Client, CredentialManager, ok } from '@atcute/client'
+import {
+	Client,
+	ClientResponseError,
+	CredentialManager,
+	ok,
+} from '@atcute/client'
 import diff from 'microdiff'
 import { TID } from '@atproto/common'
 
@@ -221,8 +226,13 @@ export async function run(): Promise<void> {
 				`\`applyWrites\` response:\n'${JSON.stringify(applyWritesResponse, null, 2)}`,
 			)
 		} catch (error) {
-			core.error('Error occurred while publishing lexicons to ATProto.')
+			if (error instanceof ClientResponseError) {
+				core.error('Error occurred while publishing lexicons to ATProto.')
+				core.error(`[${error}] ${error.error}: ${error.description}`)
+			}
+
 			core.setFailed(error as Error)
+			return
 		}
 
 		core.startGroup(
