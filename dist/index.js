@@ -45316,8 +45316,12 @@ async function run() {
             coreExports.debug(`\`applyWrites\` response:\n'${JSON.stringify(applyWritesResponse, null, 2)}`);
         }
         catch (error) {
-            coreExports.error('Error occurred while publishing lexicons to ATProto.');
+            if (error instanceof ClientResponseError) {
+                coreExports.error('Error occurred while publishing lexicons to ATProto.');
+                coreExports.error(`[${error.status}] ${error.error}: ${error.description}`);
+            }
             coreExports.setFailed(error);
+            return;
         }
         coreExports.startGroup(`✅ Successfully published ${publishStats.new + publishStats.updated} lexicons (${publishStats.new} new, ${publishStats.updated} updated)`);
         Object.values(lexiconDictionary).forEach(({ local, published, shouldPublish }) => {
