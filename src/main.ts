@@ -6,9 +6,9 @@ import diff from 'microdiff'
 import { TID } from '@atproto/common'
 
 // Local imports
+import { getActionVersion } from './getActionVersion'
 import { getPublishedLexicons } from './getPublishedLexicons'
 import { loadLexiconFiles } from './loadLexiconFiles'
-import packageJSON from '../package.json'
 
 /**
  * The main function for the action.
@@ -16,7 +16,9 @@ import packageJSON from '../package.json'
  * @returns Resolves when the action is complete.
  */
 export async function run(): Promise<void> {
-	core.debug(`Using birbhouse-games/publish-lexicons v${packageJSON.version}`)
+	const actionVersion = await getActionVersion()
+
+	core.debug(`Using birbhouse-games/publish-lexicons v${actionVersion}`)
 
 	try {
 		const APP_PASSWORD = core.getInput('app-password', { required: true })
