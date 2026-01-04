@@ -21,6 +21,11 @@ jest.unstable_mockModule('@atcute/client', () => ({
 		login: mockLogin,
 		session: { did: 'did:plc:test123' },
 	})),
+	ClientResponseError: jest.fn().mockImplementation(() => ({
+		description: 'Error description',
+		error: 'Error name from the response',
+		name: 'ClientResponseError',
+	})),
 	ok: jest.fn((promise) => promise),
 }))
 

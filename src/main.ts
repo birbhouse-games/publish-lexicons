@@ -228,7 +228,7 @@ export async function run(): Promise<void> {
 		} catch (error) {
 			if (error instanceof ClientResponseError) {
 				core.error('Error occurred while publishing lexicons to ATProto.')
-				core.error(`[${error}] ${error.error}: ${error.description}`)
+				core.error(`[${error.status}] ${error.error}: ${error.description}`)
 			}
 
 			core.setFailed(error as Error)
