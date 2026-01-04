@@ -1,3 +1,16 @@
+# [1.5.0](https://github.com/birbhouse-games/publish-lexicons/compare/v1.4.0...v1.5.0) (2026-01-04)
+
+
+### Bug Fixes
+
+* load action version properly ([0820c03](https://github.com/birbhouse-games/publish-lexicons/commit/0820c03f7ee7949b253469a16d01429f1bc600dd))
+
+
+### Features
+
+* add error handling when applyWrites fails ([f426c4e](https://github.com/birbhouse-games/publish-lexicons/commit/f426c4ed7530750f66b22e09c1fe863a0f28e3ad))
+* add version announcement to debug logging ([391e880](https://github.com/birbhouse-games/publish-lexicons/commit/391e8808bbcda5892194e5c19ed61f38d455b381))
+
 # [1.4.0](https://github.com/birbhouse-games/publish-lexicons/compare/v1.3.0...v1.4.0) (2025-12-28)
 
 
