@@ -45437,39 +45437,91 @@ async function run() {
         }
         coreExports.info(`Publishing ${publishStats.new + publishStats.updated} lexicons (${publishStats.new} new, ${publishStats.updated} updated)...`);
         const publishedLexiconIds = [];
-        const writes = Object.values(lexiconDictionary).reduce((accumulator, lexiconDictionaryEntry) => {
+        // const writes = Object.values(lexiconDictionary).reduce<
+        // 	Array<{
+        // 		$type: 'com.atproto.repo.applyWrites#create'
+        // 		collection: `${string}.${string}.${string}`
+        // 		rkey: string
+        // 		value: Record<string, unknown>
+        // 	}>
+        // >((accumulator, lexiconDictionaryEntry) => {
+        // 	if (lexiconDictionaryEntry.shouldPublish) {
+        // 		publishedLexiconIds.push(lexiconDictionaryEntry.local.id)
+        // 		accumulator.push({
+        // 			$type: 'com.atproto.repo.applyWrites#create',
+        // 			collection: 'com.atproto.lexicon.schema',
+        // 			rkey: lexiconDictionaryEntry.published?.uri
+        // 				? lexiconDictionaryEntry.published.uri.split('/').at(-1)!
+        // 				: TID.nextStr(),
+        // 			value: lexiconDictionaryEntry.local as unknown as Record<
+        // 				string,
+        // 				unknown
+        // 			>,
+        // 		})
+        // 	}
+        // 	return accumulator
+        // }, [])
+        // const applyWritesPayload = {
+        // 	repo: credentialManager.session!.did,
+        // 	writes,
+        // 	validate: true,
+        // }
+        // core.debug(
+        // 	`\`applyWrites\` payload:\n'${JSON.stringify(applyWritesPayload, null, 2)}`,
+        // )
+        // core.debug('Attempting to apply writes...')
+        // try {
+        // 	const applyWritesResponse = await ok(
+        // 		client.post('com.atproto.repo.applyWrites', {
+        // 			input: applyWritesPayload,
+        // 		}),
+        // 	)
+        // 	core.debug(
+        // 		`\`applyWrites\` response:\n'${JSON.stringify(applyWritesResponse, null, 2)}`,
+        // 	)
+        // } catch (error) {
+        // 	if (error instanceof ClientResponseError) {
+        // 		core.error('Error occurred while publishing lexicons to ATProto.')
+        // 		core.error(`[${error.status}] ${error.error}: ${error.description}`)
+        // 	}
+        // 	core.setFailed(error as Error)
+        // 	return
+        // }
+        const publishErrors = [];
+        for (const lexiconDictionaryEntry of Object.values(lexiconDictionary)) {
             if (lexiconDictionaryEntry.shouldPublish) {
                 publishedLexiconIds.push(lexiconDictionaryEntry.local.id);
-                accumulator.push({
-                    $type: 'com.atproto.repo.applyWrites#create',
-                    collection: 'com.atproto.lexicon.schema',
-                    rkey: lexiconDictionaryEntry.published?.uri
-                        ? lexiconDictionaryEntry.published.uri.split('/').at(-1)
-                        : distExports.TID.nextStr(),
-                    value: lexiconDictionaryEntry.local,
-                });
+                const rkey = lexiconDictionaryEntry.published?.uri
+                    ? lexiconDictionaryEntry.published.uri.split('/').at(-1)
+                    : distExports.TID.nextStr();
+                try {
+                    await ok(client.post('com.atproto.repo.putRecord', {
+                        input: {
+                            repo: credentialManager.session.did,
+                            collection: 'com.atproto.lexicon.schema',
+                            rkey,
+                            record: lexiconDictionaryEntry.local,
+                            validate: true,
+                        },
+                    }));
+                    coreExports.debug(`Successfully published ${lexiconDictionaryEntry.local.id} (rkey: ${rkey})`);
+                }
+                catch (error) {
+                    coreExports.error(`Failed to publish ${lexiconDictionaryEntry.local.id}`);
+                    publishErrors.push([error, lexiconDictionaryEntry.local.id]);
+                }
             }
-            return accumulator;
-        }, []);
-        const applyWritesPayload = {
-            repo: credentialManager.session.did,
-            writes,
-            validate: true,
-        };
-        coreExports.debug(`\`applyWrites\` payload:\n'${JSON.stringify(applyWritesPayload, null, 2)}`);
-        coreExports.debug('Attempting to apply writes...');
-        try {
-            const applyWritesResponse = await ok(client.post('com.atproto.repo.applyWrites', {
-                input: applyWritesPayload,
-            }));
-            coreExports.debug(`\`applyWrites\` response:\n'${JSON.stringify(applyWritesResponse, null, 2)}`);
         }
-        catch (error) {
-            if (error instanceof ClientResponseError) {
-                coreExports.error('Error occurred while publishing lexicons to ATProto.');
-                coreExports.error(`[${error.status}] ${error.error}: ${error.description}`);
-            }
-            coreExports.setFailed(error);
+        if (publishErrors.length) {
+            publishErrors.forEach(([error]) => {
+                if (error instanceof ClientResponseError) {
+                    coreExports.error(`[${error.status}] ${error.error}: ${error.description}`);
+                }
+                else {
+                    coreExports.error(error);
+                }
+            });
+            coreExports.setFailed(`Failed to publish ${publishErrors.length} lexicons: ${publishErrors.map(([, id]) => id).join(', ')}`);
             return;
         }
         coreExports.startGroup(`✅ Successfully published ${publishStats.new + publishStats.updated} lexicons (${publishStats.new} new, ${publishStats.updated} updated)`);
