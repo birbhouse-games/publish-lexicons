@@ -235,7 +235,7 @@ export async function run(): Promise<void> {
 		// 	return
 		// }
 
-		let publishErrors: Array<[Error, string]> = []
+		const publishErrors: Array<[Error, string]> = []
 
 		for (const lexiconDictionaryEntry of Object.values(lexiconDictionary)) {
 			if (lexiconDictionaryEntry.shouldPublish) {
