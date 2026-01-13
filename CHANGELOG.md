@@ -15,6 +15,20 @@
 # [1.6.0](https://github.com/birbhouse-games/publish-lexicons/compare/v1.5.0...v1.6.0) (2026-01-13)
 
 
+### Bug Fixes
+
+* Fix code formatting issues ([0fb7be9](https://github.com/birbhouse-games/publish-lexicons/commit/0fb7be917d06206ce52ce36154223aa27efa9256))
+* Fix linting error ([f5741f8](https://github.com/birbhouse-games/publish-lexicons/commit/f5741f8ca0fc9f4d460ad8cf9ed7bcff26e5b2e2))
+* publish each lexicon separately to get better error information ([320b8f7](https://github.com/birbhouse-games/publish-lexicons/commit/320b8f70d6399e43532ea483ce296b2524ef7c00))
+
+
+### Features
+
+* add better handling for ATProto client errors ([30756a8](https://github.com/birbhouse-games/publish-lexicons/commit/30756a8b6ad677aecd0382cf60a86b4390bfa066))
+
+# [1.6.0](https://github.com/birbhouse-games/publish-lexicons/compare/v1.5.0...v1.6.0) (2026-01-13)
+
+
 ### Features
 
 * add better handling for ATProto client errors ([30756a8](https://github.com/birbhouse-games/publish-lexicons/commit/30756a8b6ad677aecd0382cf60a86b4390bfa066))
