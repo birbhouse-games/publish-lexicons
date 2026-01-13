@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/birbhouse-games/publish-lexicons/compare/v1.5.0...v1.6.0) (2026-01-13)
+
+
+### Features
+
+* add better handling for ATProto client errors ([30756a8](https://github.com/birbhouse-games/publish-lexicons/commit/30756a8b6ad677aecd0382cf60a86b4390bfa066))
+
 # [1.6.0](https://github.com/birbhouse-games/publish-lexicons/compare/v1.5.0...v1.6.0) (2026-01-09)
 
 

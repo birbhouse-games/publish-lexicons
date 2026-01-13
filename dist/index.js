@@ -27579,6 +27579,7 @@ class Client {
                 'content-type': input && !isWebInput ? 'application/json' : null,
                 'atproto-proxy': _constructProxyHeader(this.proxy),
             }),
+            duplex: input instanceof ReadableStream ? 'half' : undefined,
         });
         {
             const status = response.status;
@@ -27895,10 +27896,10 @@ class CredentialManager {
         if (!this.session || headers.has('authorization')) {
             return (0, this.fetch)(url, init);
         }
-        headers.set('authorization', `Bearer ${this.session.accessJwt}`);
+        const initialToken = this.session.accessJwt;
+        headers.set('authorization', `Bearer ${initialToken}`);
         const initialResponse = await (0, this.fetch)(url, { ...init, headers });
-        const isExpired = await isExpiredTokenResponse(initialResponse);
-        if (!isExpired) {
+        if (initialResponse.status !== 401 && !(await isExpiredTokenResponse(initialResponse))) {
             return initialResponse;
         }
         try {
@@ -27908,13 +27909,20 @@ class CredentialManager {
             return initialResponse;
         }
         // return initial response if:
-        // - the above refreshSession failed and cleared the session
-        // - provided request body was a stream, which can't be resent once consumed
-        if (!this.session || init.body instanceof ReadableStream) {
+        // - request was aborted
+        // - refresh failed and cleared the session
+        // - token didn't actually change (refresh failed silently)
+        // - request body was a stream (can't be resent)
+        const updatedToken = this.session?.accessJwt;
+        if (init.signal?.aborted ||
+            !updatedToken ||
+            updatedToken === initialToken ||
+            init.body instanceof ReadableStream) {
             return initialResponse;
         }
-        // set the new token and retry the request
-        headers.set('authorization', `Bearer ${this.session.accessJwt}`);
+        // cancel initial response to avoid resource leaks (Node.js)
+        await initialResponse.body?.cancel();
+        headers.set('authorization', `Bearer ${updatedToken}`);
         return await (0, this.fetch)(url, { ...init, headers });
     }
     #refreshSession() {
@@ -27931,15 +27939,24 @@ class CredentialManager {
             },
         });
         if (!response.ok) {
-            switch (response.data.error) {
-                case 'ExpiredToken':
-                case 'InvalidToken': {
-                    this.session = undefined;
-                    this.#onExpired?.(currentSession);
-                    break;
-                }
+            const isExpired = response.status === 401 ||
+                response.data.error === 'ExpiredToken' ||
+                response.data.error === 'InvalidToken';
+            if (isExpired) {
+                this.session = undefined;
+                this.#onExpired?.(currentSession);
             }
             throw new ClientResponseError(response);
+        }
+        // DID must not change during refresh
+        if (response.data.did !== currentSession.did) {
+            this.session = undefined;
+            this.#onExpired?.(currentSession);
+            throw new ClientResponseError({ status: 401, data: { error: 'InvalidDID' } });
+        }
+        // protect against concurrent session updates
+        if (this.session !== currentSession) {
+            throw new Error('concurrent session update detected');
         }
         this.#updateSession({ ...currentSession, ...response.data });
         this.#onRefresh?.(this.session);
@@ -27971,17 +27988,32 @@ class CredentialManager {
      * @param session session data, taken from `AtpAuth#session` after login
      */
     async resume(session) {
+        // protect against concurrent resume of the same session
+        if (session.refreshJwt === this.session?.refreshJwt) {
+            await this.#refreshSessionPromise;
+            if (!this.session || session.did !== this.session.did) {
+                throw new ClientResponseError({ status: 401, data: { error: 'InvalidToken' } });
+            }
+            return this.session;
+        }
         const now = Date.now() / 1_000 + 60 * 5;
         const refreshToken = decodeJwt(session.refreshJwt);
-        if (now >= refreshToken.exp) {
+        if (now >= refreshToken.exp || refreshToken.sub !== session.did) {
             throw new ClientResponseError({ status: 401, data: { error: 'InvalidToken' } });
         }
         const accessToken = decodeJwt(session.accessJwt);
+        if (accessToken.sub !== session.did) {
+            throw new ClientResponseError({ status: 401, data: { error: 'InvalidToken' } });
+        }
+        // set the session and clear any stale refresh promise
         this.session = session;
+        this.#refreshSessionPromise = undefined;
         if (now >= accessToken.exp) {
+            // access token expired, need to refresh
             await this.#refreshSession();
         }
         else {
+            // access token still valid, fetch session info in background
             const promise = ok(this.#server.get('com.atproto.server.getSession', {
                 headers: {
                     authorization: `Bearer ${session.accessJwt}`,
@@ -28008,8 +28040,9 @@ class CredentialManager {
      * @returns session data
      */
     async login(options) {
-        // Reset the session
+        // reset the session
         this.session = undefined;
+        this.#refreshSessionPromise = undefined;
         const session = await ok(this.#server.post('com.atproto.server.createSession', {
             input: {
                 identifier: options.identifier,
@@ -28019,6 +28052,28 @@ class CredentialManager {
             },
         }));
         return this.#updateSession(session);
+    }
+    /**
+     * sign out of the current session, invalidating it server-side
+     */
+    async logout() {
+        const currentSession = this.session;
+        if (!currentSession) {
+            return;
+        }
+        this.session = undefined;
+        this.#refreshSessionPromise = undefined;
+        try {
+            await this.#server.post('com.atproto.server.deleteSession', {
+                as: null,
+                headers: {
+                    authorization: `Bearer ${currentSession.refreshJwt}`,
+                },
+            });
+        }
+        catch {
+            // ignore errors - session is already cleared locally
+        }
     }
 }
 const isExpiredTokenResponse = async (response) => {
@@ -30129,14 +30184,27 @@ function requireObject () {
 	Object.defineProperty(object, "__esModule", { value: true });
 	object.isObject = isObject;
 	object.isPlainObject = isPlainObject;
+	object.isPlainProto = isPlainProto;
+	/**
+	 * Checks whether the input is an object (not null).
+	 */
 	function isObject(input) {
 	    return input != null && typeof input === 'object';
 	}
 	const ObjectProto = Object.prototype;
 	const ObjectToString = Object.prototype.toString;
+	/**
+	 * Checks whether the input is an object (not null) whose prototype is either
+	 * null or `Object.prototype`.
+	 */
 	function isPlainObject(input) {
-	    if (!input || typeof input !== 'object')
-	        return false;
+	    return isObject(input) && isPlainProto(input);
+	}
+	/**
+	 * Checks whether the prototype of the input object is either null or
+	 * `Object.prototype`.
+	 */
+	function isPlainProto(input) {
 	    const proto = Object.getPrototypeOf(input);
 	    if (proto === null)
 	        return true;
@@ -30172,7 +30240,7 @@ function requireBlob$1 () {
 	    if (typeof mimeType !== 'string' || !mimeType.includes('/')) {
 	        return false;
 	    }
-	    if (typeof size !== 'number' || size < 0 || !Number.isInteger(size)) {
+	    if (typeof size !== 'number' || size < 0 || !Number.isSafeInteger(size)) {
 	        return false;
 	    }
 	    if (typeof ref !== 'object' || ref === null) {
@@ -30211,7 +30279,7 @@ function requireBlob$1 () {
 	    if (typeof cid !== 'string') {
 	        return false;
 	    }
-	    if (typeof mimeType !== 'string') {
+	    if (typeof mimeType !== 'string' || mimeType.length === 0) {
 	        return false;
 	    }
 	    for (const key in input) {
@@ -30239,10 +30307,10 @@ function requireLanguage () {
 	if (hasRequiredLanguage) return language;
 	hasRequiredLanguage = 1;
 	Object.defineProperty(language, "__esModule", { value: true });
-	language.parseLanguage = parseLanguage;
-	language.isLanguage = isLanguage;
+	language.parseLanguageString = parseLanguageString;
+	language.isLanguageString = isLanguageString;
 	const BCP47_REGEXP = /^((?<grandfathered>(en-GB-oed|i-ami|i-bnn|i-default|i-enochian|i-hak|i-klingon|i-lux|i-mingo|i-navajo|i-pwn|i-tao|i-tay|i-tsu|sgn-BE-FR|sgn-BE-NL|sgn-CH-DE)|(art-lojban|cel-gaulish|no-bok|no-nyn|zh-guoyu|zh-hakka|zh-min|zh-min-nan|zh-xiang))|((?<language>([A-Za-z]{2,3}(-(?<extlang>[A-Za-z]{3}(-[A-Za-z]{3}){0,2}))?)|[A-Za-z]{4}|[A-Za-z]{5,8})(-(?<script>[A-Za-z]{4}))?(-(?<region>[A-Za-z]{2}|[0-9]{3}))?(-(?<variant>[A-Za-z0-9]{5,8}|[0-9][A-Za-z0-9]{3}))*(-(?<extension>[0-9A-WY-Za-wy-z](-[A-Za-z0-9]{2,8})+))*(-(?<privateUseA>x(-[A-Za-z0-9]{1,8})+))?)|(?<privateUseB>x(-[A-Za-z0-9]{1,8})+))$/;
-	function parseLanguage(input) {
+	function parseLanguageString(input) {
 	    const parsed = input.match(BCP47_REGEXP);
 	    if (!parsed?.groups)
 	        return null;
@@ -30263,7 +30331,7 @@ function requireLanguage () {
 	 *
 	 * @see {@link https://www.rfc-editor.org/rfc/rfc5646.html#section-2.1}
 	 */
-	function isLanguage(input) {
+	function isLanguageString(input) {
 	    return BCP47_REGEXP.test(input);
 	}
 	
@@ -30273,6 +30341,60 @@ function requireLanguage () {
 var lexEquals = {};
 
 var uint8array = {};
+
+var uint8arrayConcat = {};
+
+var nodejsBuffer = {};
+
+var hasRequiredNodejsBuffer;
+
+function requireNodejsBuffer () {
+	if (hasRequiredNodejsBuffer) return nodejsBuffer;
+	hasRequiredNodejsBuffer = 1;
+	Object.defineProperty(nodejsBuffer, "__esModule", { value: true });
+	nodejsBuffer.NodeJSBuffer = void 0;
+	// Avoids a direct reference to Node.js Buffer, which might not exist in some
+	// environments (e.g. browsers, Deno, Bun) to prevent bundlers from trying to
+	// include polyfills.
+	const BUFFER = /*#__PURE__*/ (() => 'Bu' + 'f'.repeat(2) + 'er')();
+	nodejsBuffer.NodeJSBuffer = globalThis?.[BUFFER]?.prototype instanceof Uint8Array &&
+	    'byteLength' in globalThis[BUFFER]
+	    ? globalThis[BUFFER]
+	    : /* v8 ignore next -- @preserve */ null;
+	
+	return nodejsBuffer;
+}
+
+var hasRequiredUint8arrayConcat;
+
+function requireUint8arrayConcat () {
+	if (hasRequiredUint8arrayConcat) return uint8arrayConcat;
+	hasRequiredUint8arrayConcat = 1;
+	Object.defineProperty(uint8arrayConcat, "__esModule", { value: true });
+	uint8arrayConcat.ui8ConcatNode = void 0;
+	uint8arrayConcat.ui8ConcatPonyfill = ui8ConcatPonyfill;
+	const nodejs_buffer_js_1 = /*@__PURE__*/ requireNodejsBuffer();
+	const Buffer = nodejs_buffer_js_1.NodeJSBuffer;
+	uint8arrayConcat.ui8ConcatNode = Buffer
+	    ? function ui8ConcatNode(array) {
+	        return Buffer.concat(array);
+	    }
+	    : /* v8 ignore next -- @preserve */ null;
+	function ui8ConcatPonyfill(array) {
+	    let totalLength = 0;
+	    for (const arr of array)
+	        totalLength += arr.length;
+	    const result = new Uint8Array(totalLength);
+	    let offset = 0;
+	    for (const arr of array) {
+	        result.set(arr, offset);
+	        offset += arr.length;
+	    }
+	    return result;
+	}
+	
+	return uint8arrayConcat;
+}
 
 var uint8arrayFromBase64 = {};
 
@@ -30832,27 +30954,6 @@ function requireFromString () {
 	return fromString;
 }
 
-var nodejsBuffer = {};
-
-var hasRequiredNodejsBuffer;
-
-function requireNodejsBuffer () {
-	if (hasRequiredNodejsBuffer) return nodejsBuffer;
-	hasRequiredNodejsBuffer = 1;
-	Object.defineProperty(nodejsBuffer, "__esModule", { value: true });
-	nodejsBuffer.NodeJSBuffer = void 0;
-	// Avoids a direct reference to Node.js Buffer, which might not exist in some
-	// environments (e.g. browsers, Deno, Bun) to prevent bundlers from trying to
-	// include polyfills.
-	const BUFFER = /*#__PURE__*/ (() => 'Bu' + 'f'.repeat(2) + 'er')();
-	nodejsBuffer.NodeJSBuffer = globalThis?.[BUFFER]?.prototype instanceof Uint8Array &&
-	    'byteLength' in globalThis[BUFFER]
-	    ? globalThis[BUFFER]
-	    : null;
-	
-	return nodejsBuffer;
-}
-
 var hasRequiredUint8arrayFromBase64;
 
 function requireUint8arrayFromBase64 () {
@@ -30881,7 +30982,7 @@ function requireUint8arrayFromBase64 () {
 	        // results in unexpected behavior downstream (e.g. in tests)
 	        return new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 	    }
-	    : null;
+	    : /* v8 ignore next -- @preserve */ null;
 	function fromBase64Ponyfill(b64, alphabet = 'base64') {
 	    const bytes = (0, from_string_1.fromString)(b64, b64.endsWith('=') ? `${alphabet}pad` : alphabet);
 	    verifyBase64ForBytes(b64, bytes);
@@ -30994,9 +31095,10 @@ function requireUint8array () {
 	hasRequiredUint8array = 1;
 	(function (exports$1) {
 		Object.defineProperty(exports$1, "__esModule", { value: true });
-		exports$1.fromBase64 = exports$1.toBase64 = void 0;
+		exports$1.ui8Concat = exports$1.fromBase64 = exports$1.toBase64 = void 0;
 		exports$1.asUint8Array = asUint8Array;
 		exports$1.ui8Equals = ui8Equals;
+		const uint8array_concat_js_1 = /*@__PURE__*/ requireUint8arrayConcat();
 		const uint8array_from_base64_js_1 = /*@__PURE__*/ requireUint8arrayFromBase64();
 		const uint8array_to_base64_js_1 = /*@__PURE__*/ requireUint8arrayToBase64();
 		// @TODO drop dependency on uint8arrays package once Uint8Array.fromBase64 /
@@ -31008,7 +31110,10 @@ function requireUint8array () {
 		 *
 		 * @returns The base64 encoded string
 		 */
-		exports$1.toBase64 = uint8array_to_base64_js_1.toBase64Native ?? uint8array_to_base64_js_1.toBase64Node ?? uint8array_to_base64_js_1.toBase64Ponyfill;
+		exports$1.toBase64 = 
+		/* v8 ignore next -- @preserve */ uint8array_to_base64_js_1.toBase64Native ??
+		    /* v8 ignore next -- @preserve */ uint8array_to_base64_js_1.toBase64Node ??
+		    /* v8 ignore next -- @preserve */ uint8array_to_base64_js_1.toBase64Ponyfill;
 		/**
 		 * Decodes a base64 string into a Uint8Array. This function supports both padded
 		 * and unpadded base64 strings.
@@ -31016,7 +31121,11 @@ function requireUint8array () {
 		 * @returns The decoded {@link Uint8Array}
 		 * @throws If the input is not a valid base64 string
 		 */
-		exports$1.fromBase64 = uint8array_from_base64_js_1.fromBase64Native ?? uint8array_from_base64_js_1.fromBase64Node ?? uint8array_from_base64_js_1.fromBase64Ponyfill;
+		exports$1.fromBase64 = 
+		/* v8 ignore next -- @preserve */ uint8array_from_base64_js_1.fromBase64Native ??
+		    /* v8 ignore next -- @preserve */ uint8array_from_base64_js_1.fromBase64Node ??
+		    /* v8 ignore next -- @preserve */ uint8array_from_base64_js_1.fromBase64Ponyfill;
+		/* v8 ignore next -- @preserve */
 		if (exports$1.toBase64 === uint8array_to_base64_js_1.toBase64Ponyfill || exports$1.fromBase64 === uint8array_from_base64_js_1.fromBase64Ponyfill) ;
 		/**
 		 * Coerces various binary data representations into a Uint8Array.
@@ -31046,6 +31155,9 @@ function requireUint8array () {
 		    }
 		    return true;
 		}
+		exports$1.ui8Concat = 
+		/* v8 ignore next -- @preserve */ uint8array_concat_js_1.ui8ConcatNode ??
+		    /* v8 ignore next -- @preserve */ uint8array_concat_js_1.ui8ConcatPonyfill;
 		
 	} (uint8array));
 	return uint8array;
@@ -31136,6 +31248,41 @@ function requireLexEquals () {
 	return lexEquals;
 }
 
+var lexError = {};
+
+var hasRequiredLexError;
+
+function requireLexError () {
+	if (hasRequiredLexError) return lexError;
+	hasRequiredLexError = 1;
+	Object.defineProperty(lexError, "__esModule", { value: true });
+	lexError.LexError = void 0;
+	class LexError extends Error {
+	    error;
+	    name = 'LexError';
+	    constructor(error, message, options) {
+	        super(message, options);
+	        this.error = error;
+	    }
+	    toString() {
+	        return `${this.name}: [${this.error}] ${this.message}`;
+	    }
+	    toJSON() {
+	        const { error, message } = this;
+	        return { error, message: message ?? undefined };
+	    }
+	    /**
+	     * Translate into an HTTP response for downstream clients.
+	     */
+	    toResponse() {
+	        return Response.json(this.toJSON(), { status: 400 });
+	    }
+	}
+	lexError.LexError = LexError;
+	
+	return lexError;
+}
+
 var lex = {};
 
 var hasRequiredLex;
@@ -31152,74 +31299,71 @@ function requireLex () {
 	const cid_js_1 = /*@__PURE__*/ requireCid();
 	const object_js_1 = /*@__PURE__*/ requireObject();
 	function isLexMap(value) {
-	    if (!(0, object_js_1.isPlainObject)(value))
-	        return false;
-	    for (const key in value) {
-	        if (!isLexValue(value[key]))
-	            return false;
-	    }
-	    return true;
+	    return (0, object_js_1.isPlainObject)(value) && Object.values(value).every(isLexValue);
 	}
 	function isLexArray(value) {
-	    if (!Array.isArray(value))
-	        return false;
-	    for (let i = 0; i < value.length; i++) {
-	        if (!isLexValue(value[i]))
-	            return false;
-	    }
-	    return true;
+	    return Array.isArray(value) && value.every(isLexValue);
 	}
 	function isLexScalar(value) {
 	    switch (typeof value) {
 	        case 'object':
-	            if (value === null)
-	                return true;
-	            return value instanceof Uint8Array || (0, cid_js_1.isCid)(value);
+	            return value === null || value instanceof Uint8Array || (0, cid_js_1.isCid)(value);
 	        case 'string':
 	        case 'boolean':
 	            return true;
 	        case 'number':
 	            if (Number.isInteger(value))
 	                return true;
-	            throw new TypeError(`Invalid Lex value: ${value}`);
-	        default:
-	            throw new TypeError(`Invalid Lex value: ${typeof value}`);
-	    }
-	}
-	function isLexValue(value) {
-	    switch (typeof value) {
-	        case 'number':
-	            if (!Number.isInteger(value))
-	                return false;
-	        // fallthrough
-	        case 'string':
-	        case 'boolean':
-	            return true;
-	        case 'object':
-	            if (value === null)
-	                return true;
-	            if (Array.isArray(value)) {
-	                for (let i = 0; i < value.length; i++) {
-	                    if (!isLexValue(value[i]))
-	                        return false;
-	                }
-	                return true;
-	            }
-	            if ((0, object_js_1.isPlainObject)(value)) {
-	                for (const key in value) {
-	                    if (!isLexValue(value[key]))
-	                        return false;
-	                }
-	                return true;
-	            }
-	            if (value instanceof Uint8Array)
-	                return true;
-	            if ((0, cid_js_1.isCid)(value))
-	                return true;
 	        // fallthrough
 	        default:
 	            return false;
 	    }
+	}
+	function isLexValue(value) {
+	    // Using a stack to avoid recursion depth issues.
+	    const stack = [value];
+	    // Cyclic structures are not valid LexValues as they cannot be serialized to
+	    // JSON or CBOR. This also allows us to avoid infinite loops when traversing
+	    // the structure.
+	    const visited = new Set();
+	    do {
+	        const value = stack.pop();
+	        // Optimization: we are not using `isLexScalar` here to avoid extra function
+	        // calls, and to avoid computing `typeof value` multiple times.
+	        switch (typeof value) {
+	            case 'object':
+	                if (value === null) ;
+	                else if ((0, object_js_1.isPlainProto)(value)) {
+	                    if (visited.has(value))
+	                        return false;
+	                    visited.add(value);
+	                    stack.push(...Object.values(value));
+	                }
+	                else if (Array.isArray(value)) {
+	                    if (visited.has(value))
+	                        return false;
+	                    visited.add(value);
+	                    stack.push(...value);
+	                }
+	                else if (value instanceof Uint8Array || (0, cid_js_1.isCid)(value)) ;
+	                else {
+	                    return false;
+	                }
+	                break;
+	            case 'string':
+	            case 'boolean':
+	                break;
+	            case 'number':
+	                if (Number.isInteger(value))
+	                    break;
+	            // fallthrough
+	            default:
+	                return false;
+	        }
+	    } while (stack.length > 0);
+	    // Optimization: ease GC's work
+	    visited.clear();
+	    return true;
 	}
 	function isTypedLexMap(value) {
 	    return (isLexMap(value) && typeof value.$type === 'string' && value.$type.length > 0);
@@ -31840,7 +31984,7 @@ function requireUtf8GraphemeLen () {
 	// https://developer.mozilla.org/fr/docs/Web/JavaScript/Reference/Global_Objects/Intl/Segmenter
 	const segmenter = 'Segmenter' in Intl && typeof Intl.Segmenter === 'function'
 	    ? /*#__PURE__*/ new Intl.Segmenter()
-	    : null;
+	    : /* v8 ignore next -- @preserve */ null;
 	utf8GraphemeLen.graphemeLenNative = segmenter
 	    ? function graphemeLenNative(str) {
 	        let length = 0;
@@ -31848,7 +31992,7 @@ function requireUtf8GraphemeLen () {
 	            length++;
 	        return length;
 	    }
-	    : null;
+	    : /* v8 ignore next -- @preserve */ null;
 	function graphemeLenPonyfill(str) {
 	    return (0, grapheme_1.countGraphemes)(str);
 	}
@@ -31874,7 +32018,7 @@ function requireUtf8Len () {
 	    ? function utf8LenNode(string) {
 	        return nodejs_buffer_js_1.NodeJSBuffer.byteLength(string, 'utf8');
 	    }
-	    : null;
+	    : /* v8 ignore next -- @preserve */ null;
 	function utf8LenCompute(string) {
 	    // The code below is similar to TextEncoder's implementation of UTF-8
 	    // encoding. However, using TextEncoder to get the byte length is slower
@@ -31943,6 +32087,7 @@ function requireDist$5 () {
 		tslib_1.__exportStar(/*@__PURE__*/ requireCid(), exports$1);
 		tslib_1.__exportStar(/*@__PURE__*/ requireLanguage(), exports$1);
 		tslib_1.__exportStar(/*@__PURE__*/ requireLexEquals(), exports$1);
+		tslib_1.__exportStar(/*@__PURE__*/ requireLexError(), exports$1);
 		tslib_1.__exportStar(/*@__PURE__*/ requireLex(), exports$1);
 		tslib_1.__exportStar(/*@__PURE__*/ requireObject(), exports$1);
 		tslib_1.__exportStar(/*@__PURE__*/ requireUint8array(), exports$1);
@@ -32112,7 +32257,7 @@ function requireLexJson () {
 	                    return value;
 	                return parseSpecialJsonObject(value, options) ?? value;
 	            case 'number':
-	                if (Number.isInteger(value))
+	                if (Number.isInteger(value) && Number.isSafeInteger(value))
 	                    return value;
 	                if (options.strict) {
 	                    throw new TypeError(`Invalid non-integer number: ${value}`);
@@ -32134,7 +32279,7 @@ function requireLexJson () {
 	                jsonObjectToLexMap(value, options));
 	        }
 	        case 'number':
-	            if (Number.isInteger(value))
+	            if (Number.isInteger(value) && Number.isSafeInteger(value))
 	                return value;
 	            if (options.strict) {
 	                throw new TypeError(`Invalid non-integer number: ${value}`);
@@ -32194,7 +32339,7 @@ function requireLexJson () {
 	            else if ((0, lex_data_1.isCid)(value)) {
 	                return (0, link_js_1.encodeLexLink)(value);
 	            }
-	            else if (value instanceof Uint8Array) {
+	            else if (ArrayBuffer.isView(value)) {
 	                return (0, bytes_js_1.encodeLexBytes)(value);
 	            }
 	            else {
@@ -36990,14 +37135,14 @@ function requireStrings () {
 		const utf8LenLegacy = lex_data_1.utf8Len;
 		exports$1.utf8Len = utf8LenLegacy;
 		/**
-		 * @deprecated Use {@link parseLanguage} from `@atproto/lex-data` instead.
+		 * @deprecated Use {@link parseLanguageString} from `@atproto/lex-data` instead.
 		 */
-		exports$1.parseLanguageLegacy = lex_data_1.parseLanguage;
+		exports$1.parseLanguageLegacy = lex_data_1.parseLanguageString;
 		exports$1.parseLanguage = exports$1.parseLanguageLegacy;
 		/**
-		 * @deprecated Use {@link isLanguage} from `@atproto/lex-data` instead.
+		 * @deprecated Use {@link isLanguageString} from `@atproto/lex-data` instead.
 		 */
-		exports$1.validateLanguage = lex_data_1.isLanguage;
+		exports$1.validateLanguage = lex_data_1.isLanguageString;
 		/**
 		 * @deprecated Use {@link toBase64} from `@atproto/lex-data` instead.
 		 */
@@ -39202,18 +39347,21 @@ function requireDist$1 () {
 		  return decoded;
 		}
 		const CID_CBOR_TAG = 42;
-		function cidEncoder(obj) {
-		  const cid = lexData.asCid(obj);
-		  if (!cid) return null;
+		function cidEncoder(cid) {
 		  const bytes = new Uint8Array(cid.bytes.byteLength + 1);
 		  bytes.set(cid.bytes, 1);
 		  return [new Token(Type.tag, CID_CBOR_TAG), new Token(Type.bytes, bytes)];
+		}
+		function objectEncoder(obj, _typ, _options) {
+		  const cid = lexData.asCid(obj);
+		  if (cid) return cidEncoder(cid);
+		  return null;
 		}
 		function undefinedEncoder() {
 		  throw new Error("`undefined` is not allowed by the AT Data Model");
 		}
 		function numberEncoder(num) {
-		  if (Number.isInteger(num)) return null;
+		  if (Number.isInteger(num) && Number.isSafeInteger(num)) return null;
 		  throw new Error("Non-integer numbers are not allowed by the AT Data Model");
 		}
 		function mapEncoder(map) {
@@ -39227,9 +39375,10 @@ function requireDist$1 () {
 		  return null;
 		}
 		const encodeOptions = {
+		  float64: true,
 		  typeEncoders: {
 		    Map: mapEncoder,
-		    Object: cidEncoder,
+		    Object: objectEncoder,
 		    undefined: undefinedEncoder,
 		    number: numberEncoder
 		  }
