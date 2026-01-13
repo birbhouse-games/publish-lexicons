@@ -287,23 +287,21 @@ describe('main.ts', () => {
 			await run()
 
 			expect(mockPost).toHaveBeenCalledWith(
-				'com.atproto.repo.applyWrites',
+				'com.atproto.repo.putRecord',
 				expect.objectContaining({
 					input: expect.objectContaining({
 						repo: 'did:plc:test123',
-						writes: expect.arrayContaining([
-							expect.objectContaining({
-								$type: 'com.atproto.repo.applyWrites#create',
-								collection: 'com.atproto.lexicon.schema',
-								value: expect.objectContaining({
-									id: 'com.example.new',
-								}),
-							}),
-						]),
+						collection: 'com.atproto.lexicon.schema',
+						rkey: expect.any(String),
+						record: expect.objectContaining({
+							id: 'com.example.new',
+							lexicon: 1,
+						}),
 						validate: true,
 					}),
 				}),
 			)
+			expect(mockPost).toHaveBeenCalledTimes(1)
 		})
 
 		it('Sets published-count output', async () => {
@@ -441,6 +439,50 @@ describe('main.ts', () => {
 			await run()
 
 			expect(core.setFailed).toHaveBeenCalledWith('String error')
+		})
+
+		it('Handles individual lexicon publish failures', async () => {
+			mockLoadLexiconFiles.mockResolvedValue({
+				'com.example.one': {
+					local: { id: 'com.example.one', lexicon: 1 },
+					shouldPublish: true,
+				},
+			})
+
+			mockGet.mockResolvedValue({ records: [], cursor: undefined })
+			mockPost.mockRejectedValue(new Error('Publish failed'))
+
+			await run()
+
+			expect(core.error).toHaveBeenCalledWith('Failed to publish com.example.one')
+			expect(core.setFailed).toHaveBeenCalledWith(
+				'Failed to publish 1 lexicons: com.example.one',
+			)
+		})
+
+		it('Handles partial failures during publishing', async () => {
+			mockLoadLexiconFiles.mockResolvedValue({
+				'com.example.one': {
+					local: { id: 'com.example.one', lexicon: 1 },
+					shouldPublish: true,
+				},
+				'com.example.two': {
+					local: { id: 'com.example.two', lexicon: 1 },
+					shouldPublish: true,
+				},
+			})
+
+			mockGet.mockResolvedValue({ records: [], cursor: undefined })
+			mockPost
+				.mockResolvedValueOnce({}) // First call succeeds
+				.mockRejectedValueOnce(new Error('Publish failed')) // Second call fails
+
+			await run()
+
+			expect(core.error).toHaveBeenCalledWith('Failed to publish com.example.two')
+			expect(core.setFailed).toHaveBeenCalledWith(
+				'Failed to publish 1 lexicons: com.example.two',
+			)
 		})
 	})
 })
