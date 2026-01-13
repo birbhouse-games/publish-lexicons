@@ -454,7 +454,9 @@ describe('main.ts', () => {
 
 			await run()
 
-			expect(core.error).toHaveBeenCalledWith('Failed to publish com.example.one')
+			expect(core.error).toHaveBeenCalledWith(
+				'Failed to publish com.example.one',
+			)
 			expect(core.setFailed).toHaveBeenCalledWith(
 				'Failed to publish 1 lexicons: com.example.one',
 			)
@@ -479,7 +481,9 @@ describe('main.ts', () => {
 
 			await run()
 
-			expect(core.error).toHaveBeenCalledWith('Failed to publish com.example.two')
+			expect(core.error).toHaveBeenCalledWith(
+				'Failed to publish com.example.two',
+			)
 			expect(core.setFailed).toHaveBeenCalledWith(
 				'Failed to publish 1 lexicons: com.example.two',
 			)
