@@ -8,7 +8,6 @@ import {
 	ok,
 } from '@atcute/client'
 import diff from 'microdiff'
-import { TID } from '@atproto/common'
 
 // Local imports
 import { getActionVersion } from './getActionVersion'
@@ -177,80 +176,19 @@ export async function run(): Promise<void> {
 		)
 
 		const publishedLexiconIds: string[] = []
-		// const writes = Object.values(lexiconDictionary).reduce<
-		// 	Array<{
-		// 		$type: 'com.atproto.repo.applyWrites#create'
-		// 		collection: `${string}.${string}.${string}`
-		// 		rkey: string
-		// 		value: Record<string, unknown>
-		// 	}>
-		// >((accumulator, lexiconDictionaryEntry) => {
-		// 	if (lexiconDictionaryEntry.shouldPublish) {
-		// 		publishedLexiconIds.push(lexiconDictionaryEntry.local.id)
-		// 		accumulator.push({
-		// 			$type: 'com.atproto.repo.applyWrites#create',
-		// 			collection: 'com.atproto.lexicon.schema',
-		// 			rkey: lexiconDictionaryEntry.published?.uri
-		// 				? lexiconDictionaryEntry.published.uri.split('/').at(-1)!
-		// 				: TID.nextStr(),
-		// 			value: lexiconDictionaryEntry.local as unknown as Record<
-		// 				string,
-		// 				unknown
-		// 			>,
-		// 		})
-		// 	}
-
-		// 	return accumulator
-		// }, [])
-
-		// const applyWritesPayload = {
-		// 	repo: credentialManager.session!.did,
-		// 	writes,
-		// 	validate: true,
-		// }
-
-		// core.debug(
-		// 	`\`applyWrites\` payload:\n'${JSON.stringify(applyWritesPayload, null, 2)}`,
-		// )
-
-		// core.debug('Attempting to apply writes...')
-
-		// try {
-		// 	const applyWritesResponse = await ok(
-		// 		client.post('com.atproto.repo.applyWrites', {
-		// 			input: applyWritesPayload,
-		// 		}),
-		// 	)
-
-		// 	core.debug(
-		// 		`\`applyWrites\` response:\n'${JSON.stringify(applyWritesResponse, null, 2)}`,
-		// 	)
-		// } catch (error) {
-		// 	if (error instanceof ClientResponseError) {
-		// 		core.error('Error occurred while publishing lexicons to ATProto.')
-		// 		core.error(`[${error.status}] ${error.error}: ${error.description}`)
-		// 	}
-
-		// 	core.setFailed(error as Error)
-		// 	return
-		// }
-
 		const publishErrors: Array<[Error, string]> = []
 
 		for (const lexiconDictionaryEntry of Object.values(lexiconDictionary)) {
 			if (lexiconDictionaryEntry.shouldPublish) {
 				publishedLexiconIds.push(lexiconDictionaryEntry.local.id)
 
-				const rkey = lexiconDictionaryEntry.published?.uri
-					? lexiconDictionaryEntry.published.uri.split('/').at(-1)!
-					: TID.nextStr()
 				try {
 					await ok(
 						client.post('com.atproto.repo.putRecord', {
 							input: {
 								repo: credentialManager.session!.did,
 								collection: 'com.atproto.lexicon.schema',
-								rkey,
+								rkey: lexiconDictionaryEntry.local.id,
 								record: lexiconDictionaryEntry.local as unknown as Record<
 									string,
 									unknown
@@ -260,7 +198,7 @@ export async function run(): Promise<void> {
 						}),
 					)
 					core.debug(
-						`Successfully published ${lexiconDictionaryEntry.local.id} (rkey: ${rkey})`,
+						`Successfully published ${lexiconDictionaryEntry.local.id}`,
 					)
 				} catch (error) {
 					core.error(`Failed to publish ${lexiconDictionaryEntry.local.id}`)
@@ -286,17 +224,13 @@ export async function run(): Promise<void> {
 		core.startGroup(
 			`✅ Successfully published ${publishStats.new + publishStats.updated} lexicons (${publishStats.new} new, ${publishStats.updated} updated)`,
 		)
-		Object.values(lexiconDictionary).forEach(
-			({ local, published, shouldPublish }) => {
-				if (!shouldPublish) {
-					return
-				}
+		Object.values(lexiconDictionary).forEach(({ local, shouldPublish }) => {
+			if (!shouldPublish) {
+				return
+			}
 
-				core.info(
-					`- ${local.id}${published ? ` (rkey: ${published.uri.split('/').at(-1)!})` : ''}`,
-				)
-			},
-		)
+			core.info(`- ${local.id}`)
+		})
 		core.endGroup()
 
 		// Set outputs for other workflow steps
