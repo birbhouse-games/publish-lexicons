@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/birbhouse-games/publish-lexicons/compare/v1.6.0...v1.6.1) (2026-01-14)
+
+
+### Bug Fixes
+
+* Use lexicon IDs as record keys ([b0dfeb3](https://github.com/birbhouse-games/publish-lexicons/commit/b0dfeb3f0d5f60c4f3aecb1932ac1112f11af3ac))
+
 # [1.6.0](https://github.com/birbhouse-games/publish-lexicons/compare/v1.5.0...v1.6.0) (2026-01-13)
 
 
