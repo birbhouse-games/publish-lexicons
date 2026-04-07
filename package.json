@@ -25,9 +25,9 @@
 	"dependencies": {
 		"@actions/core": "^2.0.1",
 		"@actions/io": "^2.0.0",
-		"@atcute/atproto": "^3.1.10",
+		"@atcute/atproto": "^3.1.11",
 		"@atcute/client": "^4.2.1",
-		"@atproto/common": "^0.5.5",
+		"@atproto/common": "^0.5.15",
 		"microdiff": "^1.5.0"
 	},
 	"devDependencies": {
